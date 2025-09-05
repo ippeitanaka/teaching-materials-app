@@ -48,7 +48,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // セッション関連のデータをクリア
       localStorage.removeItem("guest_documents")
       localStorage.removeItem("guest_materials")
-      localStorage.removeItem("guest_templates")
     }
 
     router.push("/")

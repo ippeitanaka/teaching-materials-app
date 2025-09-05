@@ -16,9 +16,6 @@ export default function Home() {
             <Link href="/" className="text-slate-600 hover:text-slate-900 font-medium">
               ホーム
             </Link>
-            <Link href="/dashboard" className="text-slate-600 hover:text-slate-900 font-medium">
-              ダッシュボード
-            </Link>
             <Link href="/help" className="text-slate-600 hover:text-slate-900 font-medium">
               ヘルプ
             </Link>
@@ -99,11 +96,6 @@ export default function Home() {
                 <li>
                   <Link href="/" className="text-slate-300 hover:text-white">
                     ホーム
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/dashboard" className="text-slate-300 hover:text-white">
-                    ダッシュボード
                   </Link>
                 </li>
                 <li>

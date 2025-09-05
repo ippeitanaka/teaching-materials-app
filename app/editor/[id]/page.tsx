@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Input } from "@/components/ui/input"
 import { Slider } from "@/components/ui/slider"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
@@ -17,6 +18,8 @@ import { useAuth } from "@/contexts/auth-context"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { useRouter } from "next/navigation"
 import { Textarea } from "@/components/ui/textarea"
+import { Document as DocxDocument, Packer, Paragraph, TextRun, HeadingLevel } from "docx"
+import { saveAs } from "file-saver"
 
 interface Document {
   id: string
@@ -65,7 +68,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
       try {
         // ローカルストレージからドキュメントを取得
         const guestDocuments = JSON.parse(localStorage.getItem("guest_documents") || "[]")
-        const doc = guestDocuments.find((doc) => doc.id === params.id)
+        const doc = guestDocuments.find((doc: any) => doc.id === params.id)
 
         if (doc) {
           setDocument(doc)
@@ -264,6 +267,132 @@ ${text.substring(0, 200)}...`
     }
   }
 
+  // Word文書としてエクスポート
+  const handleExportToWord = async () => {
+    if (!generatedContent) {
+      toast({
+        title: "エラー",
+        description: "エクスポートする教材がありません。まず教材を生成してください。",
+        variant: "destructive",
+      })
+      return
+    }
+
+    try {
+      // マークダウンテキストをWordドキュメントに変換
+      const paragraphs: Paragraph[] = []
+      
+      // 教材タイトル
+      const title = `${document?.title || "教材"} - ${getMaterialTypeLabel(materialType)}`
+      paragraphs.push(
+        new Paragraph({
+          children: [new TextRun({ text: title, bold: true, size: 32 })],
+          heading: HeadingLevel.TITLE,
+        })
+      )
+
+      // 生成日時
+      paragraphs.push(
+        new Paragraph({
+          children: [new TextRun({ text: `生成日時: ${new Date().toLocaleString('ja-JP')}`, size: 20 })],
+        })
+      )
+
+      paragraphs.push(new Paragraph({ children: [new TextRun("")] })) // 空行
+
+      // マークダウンテキストを解析してWordに変換
+      const lines = generatedContent.split('\n')
+      let currentContent = ''
+
+      for (const line of lines) {
+        if (line.startsWith('# ')) {
+          // 見出し1
+          if (currentContent) {
+            paragraphs.push(new Paragraph({ children: [new TextRun(currentContent)] }))
+            currentContent = ''
+          }
+          paragraphs.push(
+            new Paragraph({
+              children: [new TextRun({ text: line.substring(2), bold: true, size: 28 })],
+              heading: HeadingLevel.HEADING_1,
+            })
+          )
+        } else if (line.startsWith('## ')) {
+          // 見出し2
+          if (currentContent) {
+            paragraphs.push(new Paragraph({ children: [new TextRun(currentContent)] }))
+            currentContent = ''
+          }
+          paragraphs.push(
+            new Paragraph({
+              children: [new TextRun({ text: line.substring(3), bold: true, size: 24 })],
+              heading: HeadingLevel.HEADING_2,
+            })
+          )
+        } else if (line.startsWith('### ')) {
+          // 見出し3
+          if (currentContent) {
+            paragraphs.push(new Paragraph({ children: [new TextRun(currentContent)] }))
+            currentContent = ''
+          }
+          paragraphs.push(
+            new Paragraph({
+              children: [new TextRun({ text: line.substring(4), bold: true, size: 22 })],
+              heading: HeadingLevel.HEADING_3,
+            })
+          )
+        } else if (line.trim() === '') {
+          // 空行
+          if (currentContent) {
+            paragraphs.push(new Paragraph({ children: [new TextRun(currentContent)] }))
+            currentContent = ''
+          }
+          paragraphs.push(new Paragraph({ children: [new TextRun("")] }))
+        } else {
+          // 通常のテキスト
+          if (currentContent) {
+            currentContent += '\n' + line
+          } else {
+            currentContent = line
+          }
+        }
+      }
+
+      // 最後の内容を追加
+      if (currentContent) {
+        paragraphs.push(new Paragraph({ children: [new TextRun(currentContent)] }))
+      }
+
+      // Word文書を作成
+      const doc = new DocxDocument({
+        sections: [
+          {
+            properties: {},
+            children: paragraphs,
+          },
+        ],
+      })
+
+      // ファイルを生成してダウンロード
+      const buffer = await Packer.toBuffer(doc)
+      const fileName = `${document?.title || "教材"}_${getMaterialTypeLabel(materialType)}_${new Date().toISOString().split('T')[0]}.docx`
+      
+      saveAs(new Blob([new Uint8Array(buffer)]), fileName)
+
+      toast({
+        title: "エクスポート完了",
+        description: "Word文書が正常にダウンロードされました",
+      })
+    } catch (error) {
+      console.error("Wordエクスポートエラー:", error)
+      toast({
+        title: "エラー",
+        description: "Word文書のエクスポート中にエラーが発生しました",
+        variant: "destructive",
+      })
+    }
+  }
+
   // 教材タイプのラベルを取得
   const getMaterialTypeLabel = (type: string): string => {
     switch (type) {
@@ -307,7 +436,7 @@ ${text.substring(0, 200)}...`
     if (document) {
       // ドキュメントのテキストを更新
       const guestDocuments = JSON.parse(localStorage.getItem("guest_documents") || "[]")
-      const updatedDocuments = guestDocuments.map((doc) => {
+      const updatedDocuments = guestDocuments.map((doc: any) => {
         if (doc.id === document.id) {
           return {
             ...doc,
@@ -504,20 +633,16 @@ ${text.substring(0, 200)}...`
 
                         <div className="space-y-2">
                           <Label htmlFor="question-count">問題数</Label>
-                          <Select
-                            value={options.questionCount.toString() || "10"}
-                            onValueChange={(value) => setOptions({ ...options, questionCount: Number.parseInt(value) })}
-                          >
-                            <SelectTrigger id="question-count">
-                              <SelectValue placeholder="問題数を選択" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="5">5問</SelectItem>
-                              <SelectItem value="10">10問</SelectItem>
-                              <SelectItem value="15">15問</SelectItem>
-                              <SelectItem value="20">20問</SelectItem>
-                            </SelectContent>
-                          </Select>
+                          <Input
+                            id="question-count"
+                            type="number"
+                            min="1"
+                            max="100"
+                            value={options.questionCount || 10}
+                            onChange={(e) => setOptions({ ...options, questionCount: Number.parseInt(e.target.value) || 10 })}
+                            placeholder="問題数を入力"
+                          />
+                          <p className="text-xs text-slate-500">1〜100問まで設定可能です</p>
                         </div>
                       </div>
                     )}
@@ -593,14 +718,13 @@ ${text.substring(0, 200)}...`
             <Button variant="outline" onClick={() => router.push("/dashboard?tab=materials")}>
               戻る
             </Button>
-            <Button
-              className="bg-purple-600 hover:bg-purple-700"
-              onClick={handleSaveMaterial}
-              disabled={isGenerating || !generatedContent || isSaving}
+            <Button 
+              variant="outline" 
+              onClick={handleExportToWord}
+              disabled={isGenerating || !generatedContent}
             >
-              {isSaving ? "保存中..." : "保存"}
+              Wordエクスポート
             </Button>
-            <Button variant="outline">エクスポート</Button>
           </div>
         </div>
 
@@ -808,20 +932,16 @@ ${text.substring(0, 200)}...`
 
                         <div className="space-y-2">
                           <Label htmlFor="question-count">問題数</Label>
-                          <Select
-                            value={options.questionCount.toString() || "10"}
-                            onValueChange={(value) => setOptions({ ...options, questionCount: Number.parseInt(value) })}
-                          >
-                            <SelectTrigger id="question-count">
-                              <SelectValue placeholder="問題数を選択" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="5">5問</SelectItem>
-                              <SelectItem value="10">10問</SelectItem>
-                              <SelectItem value="15">15問</SelectItem>
-                              <SelectItem value="20">20問</SelectItem>
-                            </SelectContent>
-                          </Select>
+                          <Input
+                            id="question-count"
+                            type="number"
+                            min="1"
+                            max="100"
+                            value={options.questionCount || 10}
+                            onChange={(e) => setOptions({ ...options, questionCount: Number.parseInt(e.target.value) || 10 })}
+                            placeholder="問題数を入力"
+                          />
+                          <p className="text-xs text-slate-500">1〜100問まで設定可能です</p>
                         </div>
                       </div>
                     )}
@@ -829,22 +949,6 @@ ${text.substring(0, 200)}...`
                     <div className="flex items-center justify-between">
                       <Label htmlFor="auto-generate">自動生成</Label>
                       <Switch id="auto-generate" checked={autoGenerate} onCheckedChange={setAutoGenerate} />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="template">テンプレート</Label>
-                      <Select defaultValue="default">
-                        <SelectTrigger id="template">
-                          <SelectValue placeholder="テンプレートを選択" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="default">デフォルト</SelectItem>
-                          <SelectItem value="minimal">シンプル</SelectItem>
-                          <SelectItem value="academic">アカデミック</SelectItem>
-                          <SelectItem value="colorful">カラフル</SelectItem>
-                          <SelectItem value="custom">カスタム</SelectItem>
-                        </SelectContent>
-                      </Select>
                     </div>
 
                     <div className="space-y-2">

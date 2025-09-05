@@ -69,28 +69,6 @@ export function DashboardNav({ activeItem }: DashboardNavProps) {
       ),
     },
     {
-      id: "templates",
-      label: "テンプレート",
-      href: "/templates",
-      icon: (
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className="h-5 w-5"
-        >
-          <rect width="18" height="18" x="3" y="3" rx="2" />
-          <path d="M7 7h10" />
-          <path d="M7 12h10" />
-          <path d="M7 17h10" />
-        </svg>
-      ),
-    },
-    {
       id: "settings",
       label: "設定",
       href: "/settings",
