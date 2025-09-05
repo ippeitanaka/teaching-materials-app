@@ -6,7 +6,6 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
-import { Slider } from "@/components/ui/slider"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { DashboardHeader } from "@/components/dashboard-header"
@@ -514,18 +513,33 @@ ${text.substring(0, 200)}...`
                     </div>
 
                     <div className="space-y-2">
-                      <div className="flex justify-between">
-                        <Label htmlFor="difficulty">難易度</Label>
-                        <span className="text-sm text-slate-500">{difficultyToText(difficulty)}</span>
+                      <Label htmlFor="difficulty">難易度</Label>
+                      <div className="grid grid-cols-3 gap-2">
+                        <Button
+                          variant={difficulty < 30 ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => setDifficulty(15)}
+                          className={difficulty < 30 ? "bg-green-600 hover:bg-green-700" : ""}
+                        >
+                          初級
+                        </Button>
+                        <Button
+                          variant={difficulty >= 30 && difficulty < 70 ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => setDifficulty(50)}
+                          className={difficulty >= 30 && difficulty < 70 ? "bg-blue-600 hover:bg-blue-700" : ""}
+                        >
+                          中級
+                        </Button>
+                        <Button
+                          variant={difficulty >= 70 ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => setDifficulty(85)}
+                          className={difficulty >= 70 ? "bg-red-600 hover:bg-red-700" : ""}
+                        >
+                          上級
+                        </Button>
                       </div>
-                      <Slider
-                        id="difficulty"
-                        min={0}
-                        max={100}
-                        step={10}
-                        value={[difficulty]}
-                        onValueChange={(value) => setDifficulty(value[0])}
-                      />
 
                       {document.text_analysis?.complexity !== undefined && (
                         <p className="text-xs text-slate-500">
@@ -813,18 +827,33 @@ ${text.substring(0, 200)}...`
                     </div>
 
                     <div className="space-y-2">
-                      <div className="flex justify-between">
-                        <Label htmlFor="difficulty">難易度</Label>
-                        <span className="text-sm text-slate-500">{difficultyToText(difficulty)}</span>
+                      <Label htmlFor="difficulty">難易度</Label>
+                      <div className="grid grid-cols-3 gap-2">
+                        <Button
+                          variant={difficulty < 30 ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => handleSettingsChange(materialType, 15)}
+                          className={difficulty < 30 ? "bg-green-600 hover:bg-green-700" : ""}
+                        >
+                          初級
+                        </Button>
+                        <Button
+                          variant={difficulty >= 30 && difficulty < 70 ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => handleSettingsChange(materialType, 50)}
+                          className={difficulty >= 30 && difficulty < 70 ? "bg-blue-600 hover:bg-blue-700" : ""}
+                        >
+                          中級
+                        </Button>
+                        <Button
+                          variant={difficulty >= 70 ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => handleSettingsChange(materialType, 85)}
+                          className={difficulty >= 70 ? "bg-red-600 hover:bg-red-700" : ""}
+                        >
+                          上級
+                        </Button>
                       </div>
-                      <Slider
-                        id="difficulty"
-                        min={0}
-                        max={100}
-                        step={10}
-                        value={[difficulty]}
-                        onValueChange={(value) => handleSettingsChange(materialType, value[0])}
-                      />
 
                       {document?.text_analysis?.complexity !== undefined && (
                         <p className="text-xs text-slate-500">
