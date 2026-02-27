@@ -1,6 +1,6 @@
 "use client"
 
-import React from "react"
+import React, { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { FileUpload } from "@/components/file-upload"
 import { DashboardHeader } from "@/components/dashboard-header"
@@ -8,14 +8,27 @@ import { useAuth } from "@/contexts/auth-context"
 import { DocumentList } from "@/components/document-list"
 import { GeneratedMaterials } from "@/components/generated-materials"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useRouter } from "next/navigation"
 
 export default function Dashboard() {
   const { isLoading } = useAuth()
   const router = useRouter()
-  const searchParams = useSearchParams()
-  const tabParam = searchParams.get("tab")
-  const activeTab = tabParam === "documents" || tabParam === "materials" ? tabParam : "upload"
+  const [activeTab, setActiveTab] = useState<"upload" | "documents" | "materials">("upload")
+
+  useEffect(() => {
+    const tabParam = new URLSearchParams(window.location.search).get("tab")
+    if (tabParam === "documents" || tabParam === "materials") {
+      setActiveTab(tabParam)
+      return
+    }
+    setActiveTab("upload")
+  }, [])
+
+  const handleTabChange = (value: string) => {
+    const nextTab = value === "documents" || value === "materials" ? value : "upload"
+    setActiveTab(nextTab)
+    router.replace(`/dashboard?tab=${nextTab}`)
+  }
 
   // シンプルな情報バナー
   const renderInfoBanner = () => {
@@ -72,7 +85,7 @@ export default function Dashboard() {
 
           <Tabs
             value={activeTab}
-            onValueChange={(value) => router.replace(`/dashboard?tab=${value}`)}
+            onValueChange={handleTabChange}
             className="w-full"
           >
             <TabsList className="grid grid-cols-3 w-full mb-6">
