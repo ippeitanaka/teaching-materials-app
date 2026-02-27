@@ -96,7 +96,7 @@ export default function LoginPage() {
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label htmlFor="password">パスワード</Label>
-                <Link href="/auth/forgot-password" className="text-sm text-purple-600 hover:text-purple-800">
+                <Link href="/help" className="text-sm text-purple-600 hover:text-purple-800">
                   パスワードをお忘れですか？
                 </Link>
               </div>

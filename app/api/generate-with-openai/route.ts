@@ -235,15 +235,122 @@ function cleanResponse(content: string): string {
   return cleanedContent
 }
 
+function sanitizeTextForPrompt(text: string): string {
+  return text
+    .replace(/\r\n/g, "\n")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim()
+}
+
+function buildRepresentativeText(text: string, maxLength = 5500): string {
+  const normalized = sanitizeTextForPrompt(text)
+  if (normalized.length <= maxLength) return normalized
+
+  const headSize = Math.floor(maxLength * 0.45)
+  const middleSize = Math.floor(maxLength * 0.2)
+  const tailSize = maxLength - headSize - middleSize
+  const middleStart = Math.max(0, Math.floor(normalized.length / 2 - middleSize / 2))
+
+  const head = normalized.slice(0, headSize)
+  const middle = normalized.slice(middleStart, middleStart + middleSize)
+  const tail = normalized.slice(-tailSize)
+
+  return `${head}\n\n...(中略)...\n\n${middle}\n\n...(中略)...\n\n${tail}`
+}
+
+function getDifficultyGuide(difficulty: string): string {
+  if (difficulty === "初級") {
+    return "短文・平易語彙・定義中心。1問1概念で混乱を避ける。"
+  }
+  if (difficulty === "上級") {
+    return "比較・因果・応用を含め、複数概念の統合を問う。曖昧表現を避ける。"
+  }
+  return "基本概念に加えて理由説明や関連付けを含める。"
+}
+
+function validateGeneratedContent(materialType: string, content: string, options: any): {
+  valid: boolean
+  reasons: string[]
+} {
+  const reasons: string[] = []
+  const lines = content.split("\n")
+  const questionLines = lines.filter((line) => /^\s*(\d+\.|##\s*問\d+)/.test(line)).length
+  const sectionLines = lines.filter((line) => /^\s*##\s+/.test(line)).length
+
+  if (!content.trim().startsWith("#")) {
+    reasons.push("タイトル見出し(#)が不足しています")
+  }
+
+  if (materialType === "fill-in-blank") {
+    const expected = Math.max(1, Number(options.questionCount || 10))
+    const blankCount = (content.match(/_____|□□□□□|（　　　　）/g) || []).length
+    if (blankCount < Math.max(3, Math.floor(expected * 0.5))) {
+      reasons.push("穴埋めの空欄が不足しています")
+    }
+  }
+
+  if (materialType === "quiz") {
+    const expected = Math.max(1, Number(options.questionCount || 10))
+    if (questionLines < Math.max(3, Math.floor(expected * 0.5))) {
+      reasons.push("問題数が不足しています")
+    }
+    if (!content.includes("解答")) {
+      reasons.push("解答セクションが不足しています")
+    }
+  }
+
+  if (materialType === "summary") {
+    const expectedSections = Math.max(2, Number(options.sectionCount || 5))
+    if (sectionLines < Math.max(2, Math.floor(expectedSections * 0.6))) {
+      reasons.push("見出しセクション数が不足しています")
+    }
+  }
+
+  if (materialType === "assignment") {
+    const expected = Math.max(1, Number(options.assignmentCount || 3))
+    if (questionLines < Math.max(1, Math.floor(expected * 0.6))) {
+      reasons.push("課題数が不足しています")
+    }
+  }
+
+  if (materialType === "flashcards") {
+    const expected = Math.max(5, Number(options.cardCount || 15))
+    const cardLines = lines.filter((line) => /^\s*(\d+\.|-\s*Q[:：]|Q[:：])/i.test(line)).length
+    if (cardLines < Math.max(5, Math.floor(expected * 0.5))) {
+      reasons.push("カード数が不足しています")
+    }
+  }
+
+  return { valid: reasons.length === 0, reasons }
+}
+
+async function generateWithProvider(apiProvider: string, prompt: string): Promise<string> {
+  if (apiProvider === "deepseek") {
+    return generateWithDeepSeek(prompt)
+  }
+  return generateWithGemini(prompt)
+}
+
 // AIモデル用のプロンプトを構築する関数
 function buildPrompt(text: string, materialType: string, options: any): string {
   const title = options.title || "教材"
   const difficulty = options.difficulty || "中"
   const subjectArea = options.subjectArea || "一般"
+  const questionCount = Math.min(100, Math.max(1, Number(options.questionCount || 10)))
+  const sectionCount = Math.min(15, Math.max(2, Number(options.sectionCount || 5)))
+  const assignmentCount = Math.min(20, Math.max(1, Number(options.assignmentCount || 3)))
+  const cardCount = Math.min(50, Math.max(5, Number(options.cardCount || 15)))
 
-  // 元のテキストが長すぎる場合は切り詰める
-  const maxLength = 3000 // プロンプトの長さをさらに短くする
-  const truncatedText = text.length > maxLength ? text.substring(0, maxLength) + "...(以下省略)" : text
+  const truncatedText = buildRepresentativeText(text, 5500)
+  const keyTerms = Array.isArray(options.keyTerms) ? options.keyTerms.slice(0, 20) : []
+  const keyTermsText = keyTerms.length ? keyTerms.join("、") : "（抽出なし）"
+  const difficultyGuide = getDifficultyGuide(difficulty)
+  const baseInstruction = `あなたは日本語で教材を作る教育設計者です。以下を厳守してください。
+- 出力は日本語のみ（英語、思考過程、メタ説明は禁止）
+- 元テキストに忠実で、事実の創作をしない
+- Markdown形式で出力
+- 難易度方針: ${difficultyGuide}`
 
   // 教材タイプに応じたプロンプトを構築
   let promptTemplate = ""
@@ -279,8 +386,8 @@ function buildPrompt(text: string, materialType: string, options: any): string {
       }
 
       promptTemplate = `あなたは教育専門家です。以下のテキストから穴埋め問題を作成してください。
-重要: 必ず日本語のみで応答してください。英語や内部的な思考プロセスを含めないでください。直接日本語の教材コンテンツのみを出力してください。
-重要な用語や概念を空欄にして、学習者が理解度を確認できるようにしてください。
+    ${baseInstruction}
+    重要語・重要概念を中心に、学習者が理解確認できる穴埋め問題を作成してください。
 
 空欄の形式は次のように設定してください：
 - 番号タイプ: ${
@@ -294,6 +401,7 @@ function buildPrompt(text: string, materialType: string, options: any): string {
       }
 - 番号位置: ${blankNumberPosition === "after" ? "空欄の後" : blankNumberPosition === "before" ? "空欄の前" : "空欄の上"}
 - 空欄スタイル: ${blankStyle === "underline" ? "下線" : blankStyle === "box" ? "四角" : "かっこ"}
+      - 問題数: ${questionCount}問
 
 例: ${blankExample}
 
@@ -303,6 +411,7 @@ ${truncatedText}
 タイトル: ${title}
 難易度: ${difficulty}
 科目領域: ${subjectArea}
+キーワード: ${keyTermsText}
 
 出力形式:
 # [タイトル] - 穴埋めプリント
@@ -322,10 +431,11 @@ ${truncatedText}
       break
 
     case "summary":
-      promptTemplate = `あなたは教育専門家です。以下のテキストの重要なポイントをまとめたシートを作成してください。
-重要: 必ず日本語のみで応答してください。英語や内部的な思考プロセスを含めないでください。直接日本語の教材コンテンツのみを出力してください。
-見出しと箇条書きを使って、内容を整理してください。
-必ず日本語のみで応答してください。英語や内部的な思考プロセスを含めないでください。
+  promptTemplate = `あなたは教育専門家です。以下のテキストの重要ポイントを、学習に使いやすいまとめシートとして再構成してください。
+${baseInstruction}
+- セクション数は${sectionCount}前後
+- 各セクションは「要点3〜5項目」と「授業での注意点1つ」を含める
+- 定義と因果関係を優先
 
 テキスト:
 ${truncatedText}
@@ -333,6 +443,7 @@ ${truncatedText}
 タイトル: ${title}
 難易度: ${difficulty}
 科目領域: ${subjectArea}
+キーワード: ${keyTermsText}
 
 出力形式:
 # [タイトル] - まとめシート
@@ -340,11 +451,13 @@ ${truncatedText}
 ## 1. [セクション1のタイトル]
 - [ポイント1]
 - [ポイント2]
+- 授業での注意点: [注意点]
 ...
 
 ## 2. [セクション2のタイトル]
 - [ポイント1]
 - [ポイント2]
+- 授業での注意点: [注意点]
 ...`
       break
 
@@ -365,11 +478,13 @@ ${truncatedText}
       }
 
       promptTemplate = `あなたは教育専門家です。以下のテキストに基づいて、小テスト問題を作成してください。
-重要: 必ず日本語のみで応答してください。英語や内部的な思考プロセスを含めないでください。直接日本語の教材コンテンツのみを出力してください。
+${baseInstruction}
+- 計算問題や暗記問題だけに偏らず、理解確認問題を含める
+- ひっかけ問題は禁止
 
 ${quizInstructions}
 
-問題数: ${options.questionCount || 10}問
+問題数: ${questionCount}問
 
 テキスト:
 ${truncatedText}
@@ -377,6 +492,7 @@ ${truncatedText}
 タイトル: ${title}
 難易度: ${difficulty}
 科目領域: ${subjectArea}
+キーワード: ${keyTermsText}
 
 出力形式:
 # [タイトル] - 小テスト
@@ -402,13 +518,67 @@ ${
 解答:
 1. [正解]
 2. [正解]
+...
+
+解説:
+1. [1〜2文の簡潔な解説]
+2. [1〜2文の簡潔な解説]
 ...`
       break
 
+    case "assignment":
+  promptTemplate = `あなたは教育専門家です。以下のテキストに基づいて、授業用の課題を作成してください。
+${baseInstruction}
+- 課題数: ${assignmentCount}題
+- 課題は「基礎」「応用」「振り返り」をバランスよく含める
+- 各課題に評価観点を添える
+
+テキスト:
+${truncatedText}
+
+タイトル: ${title}
+難易度: ${difficulty}
+科目領域: ${subjectArea}
+キーワード: ${keyTermsText}
+
+出力形式:
+# [タイトル] - 課題
+
+## 課題1. [課題タイトル]
+[課題文]
+- 評価観点: [観点]
+
+## 課題2. [課題タイトル]
+[課題文]
+- 評価観点: [観点]`
+  break
+
+    case "flashcards":
+  promptTemplate = `あなたは教育専門家です。以下のテキストを、暗記と理解確認の両方に使えるフラッシュカードへ変換してください。
+${baseInstruction}
+- カード枚数: ${cardCount}枚
+- 重要語の定義、比較、適用例をバランスよく含める
+
+テキスト:
+${truncatedText}
+
+タイトル: ${title}
+難易度: ${difficulty}
+科目領域: ${subjectArea}
+キーワード: ${keyTermsText}
+
+出力形式:
+# [タイトル] - フラッシュカード
+
+1. Q: [問い]
+   A: [答え]
+2. Q: [問い]
+   A: [答え]`
+  break
+
     default:
       promptTemplate = `あなたは教育専門家です。以下のテキストから${materialType}形式の教材を作成してください。
-重要: 必ず日本語のみで応答してください。英語や内部的な思考プロセスを含めないでください。直接日本語の教材コンテンツのみを出力してください。
-必ず日本語のみで応答してください。英語や内部的な思考プロセスを含めないでください。
+${baseInstruction}
 
 テキスト:
 ${truncatedText}
@@ -432,18 +602,30 @@ export async function POST(request: Request) {
     }
 
     // プロンプトを構築
-    const prompt = buildPrompt(text, materialType, options)
+    const normalizedOptions = {
+      ...options,
+      questionCount: Math.min(100, Math.max(1, Number(options?.questionCount || 10))),
+      sectionCount: Math.min(15, Math.max(2, Number(options?.sectionCount || 5))),
+      assignmentCount: Math.min(20, Math.max(1, Number(options?.assignmentCount || 3))),
+      cardCount: Math.min(50, Math.max(5, Number(options?.cardCount || 15))),
+    }
+    const prompt = buildPrompt(text, materialType, normalizedOptions)
 
     // APIプロバイダーを確認
-    const apiProvider = options.apiProvider || "gemini"
+    const apiProvider = normalizedOptions.apiProvider || "gemini"
 
-    let content = ""
-    if (apiProvider === "deepseek") {
-      // DeepSeek APIを使用
-      content = await generateWithDeepSeek(prompt)
-    } else {
-      // Gemini APIをデフォルトとして使用
-      content = await generateWithGemini(prompt)
+    let content = await generateWithProvider(apiProvider, prompt)
+    content = cleanResponse(content)
+
+    const qualityCheck = validateGeneratedContent(materialType, content, normalizedOptions)
+    if (!qualityCheck.valid) {
+      const retryPrompt = `${prompt}\n\n前回の出力の問題点: ${qualityCheck.reasons.join("、")}\n上記を修正し、要件を満たす教材を再生成してください。`
+      const retried = await generateWithProvider(apiProvider, retryPrompt)
+      const cleanedRetried = cleanResponse(retried)
+      const retryCheck = validateGeneratedContent(materialType, cleanedRetried, normalizedOptions)
+      if (retryCheck.valid) {
+        content = cleanedRetried
+      }
     }
 
     return NextResponse.json({ content, success: true })

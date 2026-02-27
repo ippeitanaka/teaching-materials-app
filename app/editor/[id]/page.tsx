@@ -45,6 +45,8 @@ export default function EditorPage({ params }: { params: { id: string } }) {
     difficulty: "中級",
     questionCount: 10,
     sectionCount: 5,
+    assignmentCount: 3,
+    cardCount: 15,
     quizType: "mixed", // 追加: 小テストの問題形式
   })
   const [autoGenerate, setAutoGenerate] = useState(false) // デフォルトをfalseに変更
@@ -138,10 +140,10 @@ export default function EditorPage({ params }: { params: { id: string } }) {
       const generationOptions = {
         title: document?.title || "教材",
         difficulty: difficultyToText(difficulty),
-        questionCount: options.questionCount || 10,
-        sectionCount: options.sectionCount || 5,
-        assignmentCount: 3,
-        cardCount: 15,
+        questionCount: Math.min(100, Math.max(1, options.questionCount || 10)),
+        sectionCount: Math.min(15, Math.max(2, options.sectionCount || 5)),
+        assignmentCount: Math.min(20, Math.max(1, options.assignmentCount || 3)),
+        cardCount: Math.min(50, Math.max(5, options.cardCount || 15)),
         subjectArea: document?.text_analysis?.subjectArea || "一般",
         keyTerms: document?.text_analysis?.keyTerms || [],
         blankNumberType: options.blankNumberType || "numeric",
@@ -570,6 +572,22 @@ ${text.substring(0, 200)}...`
                         <h3 className="font-medium text-slate-900">穴埋め設定</h3>
 
                         <div className="space-y-2">
+                          <Label htmlFor="blank-question-count">問題数</Label>
+                          <Input
+                            id="blank-question-count"
+                            type="number"
+                            min="1"
+                            max="100"
+                            value={options.questionCount || 10}
+                            onChange={(e) =>
+                              setOptions({ ...options, questionCount: Number.parseInt(e.target.value) || 10 })
+                            }
+                            placeholder="問題数を入力"
+                          />
+                          <p className="text-xs text-slate-500">1〜100問まで設定可能です</p>
+                        </div>
+
+                        <div className="space-y-2">
                           <Label htmlFor="blank-number-type">番号タイプ</Label>
                           <Select
                             value={options.blankNumberType || "numeric"}
@@ -657,6 +675,69 @@ ${text.substring(0, 200)}...`
                             placeholder="問題数を入力"
                           />
                           <p className="text-xs text-slate-500">1〜100問まで設定可能です</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {materialType === "summary" && (
+                      <div className="space-y-4 border-t border-slate-200 pt-4 mt-4">
+                        <h3 className="font-medium text-slate-900">まとめシート設定</h3>
+                        <div className="space-y-2">
+                          <Label htmlFor="summary-section-count">セクション数</Label>
+                          <Input
+                            id="summary-section-count"
+                            type="number"
+                            min="2"
+                            max="15"
+                            value={options.sectionCount || 5}
+                            onChange={(e) =>
+                              setOptions({ ...options, sectionCount: Number.parseInt(e.target.value) || 5 })
+                            }
+                            placeholder="セクション数を入力"
+                          />
+                          <p className="text-xs text-slate-500">2〜15セクションで調整できます</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {materialType === "assignment" && (
+                      <div className="space-y-4 border-t border-slate-200 pt-4 mt-4">
+                        <h3 className="font-medium text-slate-900">課題設定</h3>
+                        <div className="space-y-2">
+                          <Label htmlFor="assignment-count">課題数</Label>
+                          <Input
+                            id="assignment-count"
+                            type="number"
+                            min="1"
+                            max="20"
+                            value={options.assignmentCount || 3}
+                            onChange={(e) =>
+                              setOptions({ ...options, assignmentCount: Number.parseInt(e.target.value) || 3 })
+                            }
+                            placeholder="課題数を入力"
+                          />
+                          <p className="text-xs text-slate-500">1〜20題まで設定可能です</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {materialType === "flashcards" && (
+                      <div className="space-y-4 border-t border-slate-200 pt-4 mt-4">
+                        <h3 className="font-medium text-slate-900">フラッシュカード設定</h3>
+                        <div className="space-y-2">
+                          <Label htmlFor="card-count">カード枚数</Label>
+                          <Input
+                            id="card-count"
+                            type="number"
+                            min="5"
+                            max="50"
+                            value={options.cardCount || 15}
+                            onChange={(e) =>
+                              setOptions({ ...options, cardCount: Number.parseInt(e.target.value) || 15 })
+                            }
+                            placeholder="カード枚数を入力"
+                          />
+                          <p className="text-xs text-slate-500">5〜50枚まで設定可能です</p>
                         </div>
                       </div>
                     )}
@@ -884,6 +965,22 @@ ${text.substring(0, 200)}...`
                         <h3 className="font-medium text-slate-900">穴埋め設定</h3>
 
                         <div className="space-y-2">
+                          <Label htmlFor="blank-question-count-side">問題数</Label>
+                          <Input
+                            id="blank-question-count-side"
+                            type="number"
+                            min="1"
+                            max="100"
+                            value={options.questionCount || 10}
+                            onChange={(e) =>
+                              setOptions({ ...options, questionCount: Number.parseInt(e.target.value) || 10 })
+                            }
+                            placeholder="問題数を入力"
+                          />
+                          <p className="text-xs text-slate-500">1〜100問まで設定可能です</p>
+                        </div>
+
+                        <div className="space-y-2">
                           <Label htmlFor="blank-number-type">番号タイプ</Label>
                           <Select
                             value={options.blankNumberType || "numeric"}
@@ -971,6 +1068,69 @@ ${text.substring(0, 200)}...`
                             placeholder="問題数を入力"
                           />
                           <p className="text-xs text-slate-500">1〜100問まで設定可能です</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {materialType === "summary" && (
+                      <div className="space-y-4 border-t border-slate-200 pt-4 mt-4">
+                        <h3 className="font-medium text-slate-900">まとめシート設定</h3>
+                        <div className="space-y-2">
+                          <Label htmlFor="summary-section-count-side">セクション数</Label>
+                          <Input
+                            id="summary-section-count-side"
+                            type="number"
+                            min="2"
+                            max="15"
+                            value={options.sectionCount || 5}
+                            onChange={(e) =>
+                              setOptions({ ...options, sectionCount: Number.parseInt(e.target.value) || 5 })
+                            }
+                            placeholder="セクション数を入力"
+                          />
+                          <p className="text-xs text-slate-500">2〜15セクションで調整できます</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {materialType === "assignment" && (
+                      <div className="space-y-4 border-t border-slate-200 pt-4 mt-4">
+                        <h3 className="font-medium text-slate-900">課題設定</h3>
+                        <div className="space-y-2">
+                          <Label htmlFor="assignment-count-side">課題数</Label>
+                          <Input
+                            id="assignment-count-side"
+                            type="number"
+                            min="1"
+                            max="20"
+                            value={options.assignmentCount || 3}
+                            onChange={(e) =>
+                              setOptions({ ...options, assignmentCount: Number.parseInt(e.target.value) || 3 })
+                            }
+                            placeholder="課題数を入力"
+                          />
+                          <p className="text-xs text-slate-500">1〜20題まで設定可能です</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {materialType === "flashcards" && (
+                      <div className="space-y-4 border-t border-slate-200 pt-4 mt-4">
+                        <h3 className="font-medium text-slate-900">フラッシュカード設定</h3>
+                        <div className="space-y-2">
+                          <Label htmlFor="card-count-side">カード枚数</Label>
+                          <Input
+                            id="card-count-side"
+                            type="number"
+                            min="5"
+                            max="50"
+                            value={options.cardCount || 15}
+                            onChange={(e) =>
+                              setOptions({ ...options, cardCount: Number.parseInt(e.target.value) || 15 })
+                            }
+                            placeholder="カード枚数を入力"
+                          />
+                          <p className="text-xs text-slate-500">5〜50枚まで設定可能です</p>
                         </div>
                       </div>
                     )}

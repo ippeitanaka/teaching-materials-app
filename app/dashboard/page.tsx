@@ -1,13 +1,21 @@
 "use client"
 
-import React, { useState } from "react"
+import React from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { FileUpload } from "@/components/file-upload"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { useAuth } from "@/contexts/auth-context"
+import { DocumentList } from "@/components/document-list"
+import { GeneratedMaterials } from "@/components/generated-materials"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { useRouter, useSearchParams } from "next/navigation"
 
 export default function Dashboard() {
   const { isLoading } = useAuth()
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const tabParam = searchParams.get("tab")
+  const activeTab = tabParam === "documents" || tabParam === "materials" ? tabParam : "upload"
 
   // シンプルな情報バナー
   const renderInfoBanner = () => {
@@ -59,53 +67,69 @@ export default function Dashboard() {
         <main className="max-w-4xl mx-auto">
           <div className="mb-6">
             <h1 className="text-3xl font-bold text-slate-900 mb-2">教材作成アシスタント</h1>
-            <p className="text-slate-600">PDFや画像ファイルをアップロードして、AIで教材を自動生成しましょう</p>
+            <p className="text-slate-600">資料のアップロード、資料一覧、生成済み教材の管理をここで行えます</p>
           </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>新規資料のアップロード</CardTitle>
-              <CardDescription>
-                PDFファイルまたは画像ファイルをアップロードして、穴埋めプリント、まとめシート、小テストなどの教材を生成します
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <FileUpload dashboard={true} />
-            </CardContent>
-          </Card>
+          <Tabs
+            value={activeTab}
+            onValueChange={(value) => router.replace(`/dashboard?tab=${value}`)}
+            className="w-full"
+          >
+            <TabsList className="grid grid-cols-3 w-full mb-6">
+              <TabsTrigger value="upload">アップロード</TabsTrigger>
+              <TabsTrigger value="documents">資料一覧</TabsTrigger>
+              <TabsTrigger value="materials">教材一覧</TabsTrigger>
+            </TabsList>
 
-          <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Card>
-              <CardHeader className="pb-4">
-                <CardTitle className="text-lg">穴埋めプリント</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-slate-600">
-                  重要な用語や概念を空欄にした学習プリントを自動生成
-                </p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-4">
-                <CardTitle className="text-lg">まとめシート</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-slate-600">
-                  内容の要点を整理した分かりやすいまとめシートを作成
-                </p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-4">
-                <CardTitle className="text-lg">小テスト</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-slate-600">
-                  選択式・記述式問題を組み合わせた小テストを生成
-                </p>
-              </CardContent>
-            </Card>
-          </div>
+            <TabsContent value="upload" className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>新規資料のアップロード</CardTitle>
+                  <CardDescription>
+                    PDFファイルまたは画像ファイルをアップロードして、穴埋めプリント、まとめシート、小テストなどの教材を生成します
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <FileUpload dashboard={true} />
+                </CardContent>
+              </Card>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Card>
+                  <CardHeader className="pb-4">
+                    <CardTitle className="text-lg">穴埋めプリント</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-slate-600">重要な用語や概念を空欄にした学習プリントを自動生成</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="pb-4">
+                    <CardTitle className="text-lg">まとめシート</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-slate-600">内容の要点を整理した分かりやすいまとめシートを作成</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="pb-4">
+                    <CardTitle className="text-lg">小テスト</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-slate-600">選択式・記述式問題を組み合わせた小テストを生成</p>
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="documents">
+              <DocumentList />
+            </TabsContent>
+
+            <TabsContent value="materials">
+              <GeneratedMaterials />
+            </TabsContent>
+          </Tabs>
         </main>
       </div>
     </div>
