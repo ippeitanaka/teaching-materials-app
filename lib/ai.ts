@@ -43,8 +43,17 @@ export async function generateMaterialWithAI(text: string, materialType: string,
       // APIからの応答を受け取った後、英語の部分を除去する
       if (data.success) {
         console.log("API応答成功")
+        const content = String(data.content || "")
+        if (
+          content.includes("このコンテンツはサンプルです。APIの呼び出しに失敗したため") ||
+          content.includes("サンプル教材")
+        ) {
+          throw new Error(
+            "AI生成APIは成功を返しましたが、内容はサンプルでした。最新デプロイが反映されているか、環境変数(GEMINI_API_KEY)を確認してください。",
+          )
+        }
         // 英語の部分を除去する
-        return cleanResponse(data.content)
+        return cleanResponse(content)
       }
 
       // 成功しなかった場合はエラーメッセージを表示
