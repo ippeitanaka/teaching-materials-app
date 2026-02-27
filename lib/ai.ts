@@ -35,8 +35,7 @@ export async function generateMaterialWithAI(text: string, materialType: string,
       if (!response.ok) {
         const errorText = await response.text()
         console.error(`API応答エラー (${response.status}):`, errorText)
-        console.log("APIエラーのため、ダミーレスポンスを返します")
-        return generateDummyResponse(materialType, options, truncatedText)
+        throw new Error(`API応答エラー (${response.status})`) 
       }
 
       const data = await response.json()
@@ -50,15 +49,14 @@ export async function generateMaterialWithAI(text: string, materialType: string,
 
       // 成功しなかった場合はエラーメッセージを表示
       console.log("APIでの生成に失敗しました:", data.error || "不明なエラー")
-      return data.content || generateDummyResponse(materialType, options, truncatedText)
+      throw new Error(data.error || "教材生成に失敗しました")
     } catch (error) {
       console.error("API呼び出しエラー:", error)
       if (error instanceof Error) {
         console.error("エラーメッセージ:", error.message)
         console.error("エラースタック:", error.stack)
       }
-      console.log("API呼び出しエラーのため、ダミーレスポンスを返します")
-      return generateDummyResponse(materialType, options, truncatedText)
+      throw error instanceof Error ? error : new Error("API呼び出しに失敗しました")
     }
   } catch (error) {
     console.error("AI生成エラー:", error)
@@ -67,8 +65,7 @@ export async function generateMaterialWithAI(text: string, materialType: string,
       console.error("エラースタック:", error.stack)
     }
 
-    // エラーが発生した場合はダミーレスポンスを返す
-    return `AI生成エラー: ${error instanceof Error ? error.message : "不明なエラー"}. もう一度お試しください。`
+    throw new Error(`AI生成エラー: ${error instanceof Error ? error.message : "不明なエラー"}`)
   }
 }
 

@@ -4,14 +4,26 @@ import { GoogleGenerativeAI } from "@google/generative-ai"
 // Node.jsランタイムを明示的に指定
 export const runtime = "nodejs"
 
+class AiProviderError extends Error {
+  code: string
+
+  constructor(code: string, message: string) {
+    super(message)
+    this.code = code
+    this.name = "AiProviderError"
+  }
+}
+
 // Gemini 1.5 Flashモデルを使用して教材を生成する関数
 async function generateWithGemini(prompt: string): Promise<string> {
   try {
     const apiKey = process.env.GEMINI_API_KEY
 
     if (!apiKey) {
-      console.warn("Gemini API Keyが設定されていません。ダミーレスポンスを返します。")
-      return generateDummyResponse()
+      throw new AiProviderError(
+        "MISSING_GEMINI_API_KEY",
+        "Gemini APIキーが未設定です。Vercelの環境変数 GEMINI_API_KEY を設定してください。",
+      )
     }
 
     console.log("Gemini 1.5 Flash APIを使用して教材を生成します")
@@ -40,11 +52,14 @@ async function generateWithGemini(prompt: string): Promise<string> {
       return cleanResponse(content)
     } catch (error) {
       console.error("gemini-1.5-flashモデル呼び出しエラー:", error)
-      return generateDummyResponse()
+      throw new AiProviderError("GEMINI_REQUEST_FAILED", "Gemini API呼び出しに失敗しました。")
     }
   } catch (error) {
     console.error("Gemini API呼び出しエラー:", error)
-    return generateDummyResponse()
+    if (error instanceof AiProviderError) {
+      throw error
+    }
+    throw new AiProviderError("GEMINI_UNKNOWN_ERROR", "Gemini API呼び出し中に予期しないエラーが発生しました。")
   }
 }
 
@@ -68,8 +83,10 @@ async function generateWithDeepSeek(prompt: string): Promise<string> {
     ]
 
     if (!apiKey) {
-      console.warn("DeepSeek API Keyが設定されていません。モック応答を返します。")
-      return generateDummyResponse()
+      throw new AiProviderError(
+        "MISSING_DEEPSEEK_API_KEY",
+        "DeepSeek APIキーが未設定です。Vercelの環境変数 DEEPSEEK_API_KEY を設定してください。",
+      )
     }
 
     console.log("DeepSeek APIを使用して教材を生成します")
@@ -110,7 +127,11 @@ async function generateWithDeepSeek(prompt: string): Promise<string> {
 
         const data = await response.json()
         console.log(`DeepSeek APIモデル ${modelId} で成功しました`)
-        return data.choices[0].message.content || generateDummyResponse()
+        const message = data?.choices?.[0]?.message?.content
+        if (!message) {
+          throw new AiProviderError("DEEPSEEK_EMPTY_RESPONSE", "DeepSeek APIから有効な応答が返されませんでした。")
+        }
+        return message
       } catch (modelError) {
         console.error(`DeepSeek APIモデル ${modelId} 呼び出しエラー:`, modelError)
         lastError = modelError
@@ -119,36 +140,15 @@ async function generateWithDeepSeek(prompt: string): Promise<string> {
       }
     }
 
-    // すべてのモデルIDで失敗した場合
     console.error("すべてのDeepSeekモデルIDで失敗しました。最後のエラー:", lastError)
-
-    // Geminiにフォールバック
-    console.log("DeepSeekの呼び出しに失敗したため、Geminiにフォールバックします")
-    return await generateWithGemini(prompt)
+    throw new AiProviderError("DEEPSEEK_ALL_MODELS_FAILED", "DeepSeek APIの全モデル呼び出しに失敗しました。")
   } catch (error) {
     console.error("DeepSeek API呼び出しエラー:", error)
-    // Geminiにフォールバック
-    console.log("DeepSeekの呼び出しに失敗したため、Geminiにフォールバックします")
-    return await generateWithGemini(prompt)
+    if (error instanceof AiProviderError) {
+      throw error
+    }
+    throw new AiProviderError("DEEPSEEK_UNKNOWN_ERROR", "DeepSeek API呼び出し中に予期しないエラーが発生しました。")
   }
-}
-
-// ダミーの応答を生成する関数
-function generateDummyResponse(): string {
-  return `# サンプル教材
-
-このコンテンツはサンプルです。APIの呼び出しに失敗したため、実際のテキストに基づいた教材は生成されていません。
-
-## 主要ポイント
-- これはサンプルのまとめシートです
-- 環境変数が正しく設定されているか確認してください
-- APIキーが有効であることを確認してください
-- DeepSeekまたはGemini APIへのアクセス権があることを確認してください
-
-## オフラインモードでの使用方法
-- テキストを手動で編集して教材を作成できます
-- エディタ機能を使用して、自分で教材を作成してください
-- 保存ボタンを使用して、作成した教材を保存できます`
 }
 
 // 応答から英語の部分や内部的な思考プロセスを除去する関数
@@ -327,7 +327,14 @@ function validateGeneratedContent(materialType: string, content: string, options
 
 async function generateWithProvider(apiProvider: string, prompt: string): Promise<string> {
   if (apiProvider === "deepseek") {
-    return generateWithDeepSeek(prompt)
+    try {
+      return await generateWithDeepSeek(prompt)
+    } catch (error) {
+      if (error instanceof AiProviderError && error.code === "MISSING_DEEPSEEK_API_KEY") {
+        return generateWithGemini(prompt)
+      }
+      throw error
+    }
   }
   return generateWithGemini(prompt)
 }
@@ -636,10 +643,15 @@ export async function POST(request: Request) {
       console.error("エラースタック:", error.stack)
     }
 
+    const safeMessage =
+      error instanceof AiProviderError
+        ? error.message
+        : "教材生成中にエラーが発生しました。環境変数とAPIアクセス設定を確認してください。"
+
     return NextResponse.json(
       {
-        error: "教材生成中にエラーが発生しました",
-        content: `エラーが発生しました: ${error instanceof Error ? error.message : "不明なエラー"}. もう一度お試しください。`,
+        error: safeMessage,
+        content: "",
         success: false,
       },
       { status: 200 },
